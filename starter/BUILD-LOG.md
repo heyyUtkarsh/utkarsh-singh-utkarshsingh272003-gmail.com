@@ -113,9 +113,23 @@ every permission key; had can()/assertCan()/assertCanStartSession() read from
 that single decision path (decideOne) rather than duplicating logic.
 
 ## Phase 3 — orgs, members, invites
+27-09-2026 02:20 IST
 
-_Anything you had to work out that no document states. Invite lifecycle states are a common
-source of this._
+Expected: routes/index.js would mostly be plumbing once auth, context, and
+permissions were solid — read params, call assertCan, query the db, respond.
+Observed: the first full pass had one serious bug that check-api.js caught
+immediately — the cross-org isolation check in context.js compared
+params.orgId, but the router's actual parameter name (from the :org segment
+in routes like /v1/orgs/:org/devices) is params.org. Since params.orgId was
+always undefined, the check silently never fired, and a token scoped to one
+org could address any org's URL, exactly the vulnerability the whole
+structural-isolation design was meant to prevent. It only surfaced because
+the test suite specifically checks "Acme token against Globex -> 404."
+Changed: fixed the param name mismatch in context.js.
+Note: node scripts/check-api.js, 66 passed, 0 failed. A parameter name
+typo that silently disables a security check and still returns 200 is a
+worse failure mode than a crash, it never even hinted anything was wrong
+until the specific isolation test caught it.
 
 ## Phase 4 — devices and grants
 
