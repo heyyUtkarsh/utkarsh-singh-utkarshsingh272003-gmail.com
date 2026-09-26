@@ -19,32 +19,31 @@ const b64 = (buf) => Buffer.from(buf).toString('base64url');
 const unb64 = (str) => Buffer.from(str, 'base64url');
 
 export function signToken(claims, secret) {
-  const header = { alg: ALG, typ: 'JWT' };
-  const h = b64(JSON.stringify(header));
-  const p = b64(JSON.stringify(claims));
-  const sig = createHmac('sha256', secret).update(`${h}.${p}`).digest();
-  return `${h}.${p}.${b64(sig)}`;
+    const header = { alg: ALG, typ: 'JWT' };
+    const h = b64(JSON.stringify(header));
+    const p = b64(JSON.stringify(claims));
+    const sig = createHmac('sha256', secret).update(`${h}.${p}`).digest();
+    return `${h}.${p}.${b64(sig)}`;
 }
 
 // Issue an access token. Note what is NOT in here: the resolved permission set.
 // The token carries the authorization INPUTS (org, role, pv); the server resolves
 // the permissions. See AUTH-DATA-MODEL.md §1 (D11).
 export function issueAccessToken({ userId, orgId, role, permVersion }, secret) {
-  const now = Math.floor(Date.now() / 1000);
-  return signToken(
-    {
-      iss: ISS,
-      aud: AUD,
-      sub: userId,
-      org: orgId,
-      role,
-      pv: permVersion,
-      jti: randomUUID(),
-      iat: now,
-      exp: now + ACCESS_TTL_SECONDS,
-    },
-    secret
-  );
+    const now = Math.floor(Date.now() / 1000);
+    return signToken({
+            iss: ISS,
+            aud: AUD,
+            sub: userId,
+            org: orgId,
+            role,
+            pv: permVersion,
+            jti: randomUUID(),
+            iat: now,
+            exp: now + ACCESS_TTL_SECONDS,
+        },
+        secret
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -71,12 +70,45 @@ export function issueAccessToken({ userId, orgId, role, permVersion }, secret) {
 // `node scripts/check-jwt.js` is the public test suite for this function.
 // ---------------------------------------------------------------------------
 export function verifyAccessToken(token, secret) {
-  // YOURS TO WRITE. Every failure mode listed above must be a 401 UNAUTHENTICATED.
-  // `node scripts/check-jwt.js` is the public suite for this function.
-  throw Object.assign(
-    new Error('TODO: server/auth.js — verifyAccessToken() is yours to write (AUTH-DATA-MODEL.md §10).'),
-    { code: 'NOT_IMPLEMENTED' }
-  );
+    const parts = token.split('.');
+    if (parts.length !== 3) throw unauthenticated('malformed token');
+    const [h, p, s] = parts;
+
+    let header, claims;
+    try {
+        header = JSON.parse(unb64(h).toString('utf8'));
+        claims = JSON.parse(unb64(p).toString('utf8'));
+    } catch {
+        throw unauthenticated('malformed token');
+    }
+
+    if (header.alg !== ALG || header.typ !== 'JWT') {
+        throw unauthenticated('unsupported algorithm');
+    }
+
+    const expectedSig = createHmac('sha256', secret).update(`${h}.${p}`).digest();
+    const actualSig = unb64(s);
+    if (
+        actualSig.length !== expectedSig.length ||
+        !timingSafeEqual(actualSig, expectedSig)
+    ) {
+        throw unauthenticated('bad signature');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof claims.exp !== 'number' || claims.exp <= now) {
+        throw unauthenticated('token expired');
+    }
+
+    if (claims.iss !== ISS || claims.aud !== AUD) {
+        throw unauthenticated('invalid issuer or audience');
+    }
+
+    if (!claims.jti || typeof claims.jti !== 'string') {
+        throw unauthenticated('missing token id');
+    }
+
+    return claims;
 }
 
 
@@ -84,8 +116,8 @@ export function verifyAccessToken(token, secret) {
 // membership's current perm_version. Note `!==`, not `<`: a token from the future is
 // as suspect as a stale one.
 export function assertFresh(claims, membership) {
-  if (!membership) throw unauthenticated('not a member of this org');
-  if (membership.perm_version !== claims.pv) throw tokenStale();
+    if (!membership) throw unauthenticated('not a member of this org');
+    if (membership.perm_version !== claims.pv) throw tokenStale();
 }
 
 // --- opaque credentials: refresh tokens and invite tokens -------------------
@@ -100,29 +132,29 @@ export function assertFresh(claims, membership) {
 // point of hashing a high-entropy token.
 
 export const newRefreshToken = () => randomBytes(32).toString('base64url');
-export const newInviteToken  = () => randomBytes(32).toString('base64url');
+export const newInviteToken = () => randomBytes(32).toString('base64url');
 
 const APP_HASH_KEY = process.env.APP_HASH_KEY ?? 'dev-only-app-hash-key-change-me';
 
 export const hashRefreshToken = (raw) =>
-  createHmac('sha256', `${APP_HASH_KEY}:refresh`).update(raw).digest('hex');
+    createHmac('sha256', `${APP_HASH_KEY}:refresh`).update(raw).digest('hex');
 
 export const hashInviteToken = (raw) =>
-  createHmac('sha256', `${APP_HASH_KEY}:invite`).update(raw).digest('hex');
+    createHmac('sha256', `${APP_HASH_KEY}:invite`).update(raw).digest('hex');
 
 // --- passwords --------------------------------------------------------------
 
 export function hashPassword(password) {
-  const salt = randomBytes(16).toString('hex');
-  const derived = scryptSync(password, salt, 64).toString('hex');
-  return `scrypt$${salt}$${derived}`;
+    const salt = randomBytes(16).toString('hex');
+    const derived = scryptSync(password, salt, 64).toString('hex');
+    return `scrypt$${salt}$${derived}`;
 }
 
 export function verifyPassword(password, stored) {
-  const [scheme, salt, expected] = String(stored ?? '').split('$');
-  if (scheme !== 'scrypt' || !salt || !expected) return false;
-  const actual = scryptSync(password, salt, 64).toString('hex');
-  const a = Buffer.from(actual, 'hex');
-  const b = Buffer.from(expected, 'hex');
-  return a.length === b.length && timingSafeEqual(a, b);
+    const [scheme, salt, expected] = String(stored ?? '').split('$');
+    if (scheme !== 'scrypt' || !salt || !expected) return false;
+    const actual = scryptSync(password, salt, 64).toString('hex');
+    const a = Buffer.from(actual, 'hex');
+    const b = Buffer.from(expected, 'hex');
+    return a.length === b.length && timingSafeEqual(a, b);
 }
