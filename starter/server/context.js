@@ -25,7 +25,7 @@ export function authenticate(db, secret) {
 
         // The token's org claim is the only org this caller may address. A path
         // naming a different org is invisible, not forbidden.
-        if (params.orgId && params.orgId !== claims.org) {
+        if (params.org && params.org !== claims.org) {
             throw notFound();
         }
 

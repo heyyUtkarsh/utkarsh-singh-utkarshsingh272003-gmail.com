@@ -64,6 +64,7 @@ fails silently instead of loudly. Also: tooling that "fixes" code it doesn't
 understand is worse than tooling that just complains.
 
 ## Phase 2 — caller context and the resolution engine
+26-09-2026 21:25 IST
 
 Expected: authenticate() would just be "verify the token, look up the membership,"
 and permissions.js would be a straightforward translation of the resolution rules
