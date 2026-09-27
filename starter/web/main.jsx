@@ -58,7 +58,7 @@ function DevicesView({ orgId }) {
           <td>{d.name}</td>
           <td>
             {Object.keys(d.permissions)
-              .filter((p) => p.startsWith('device:') && d.permissions[p].effect === 'allow')
+              .filter((p) => ['device:view', 'device:control', 'device:terminal', 'device:file_transfer'].includes(p) && d.permissions[p].effect === 'allow')
               .map((p) => (
                 <button key={p} data-permission={p} data-state="unlocked">{p.split(':')[1]}</button>
               ))}
