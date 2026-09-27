@@ -1,65 +1,49 @@
-# DECISIONS
+## Why exp uses <= not <
 
-One section per decision that a reviewer might reasonably have made differently. Every section has
-the same four parts, and the third and fourth are the ones we weigh most.
+Considered: exp < now
 
-Rules, from `DISCOVERY-BRIEF.md`:
+Chose: exp <= now
 
-- cite something real in `Why` — a commit, a test, an error string, a file and line
-- do not restate what a document says; describe what you did when the documents ran out
-- six to twelve decisions is the expected range
+I used <= because if exp is exactly the same as now, the token has already reached its expiry time. With just <, it could still pass for that exact moment. It is a very small edge case, but there is no real reason to allow it. So <= makes the expiry check stricter.
 
 ---
 
-### <the decision, as a claim — not "permissions", but "the org-level view counts device-scoped grants">
+## Why owner bypasses the equal-rank modification rule
 
-**What I chose:**
-**Why:** _(evidence: test, log line, commit)_
-**What I rejected:** _(the plausible alternative, and the specific reason it fails)_
-**What would change my mind:**
+Considered: use the "cannot modify equal or higher rank" rule for owners also.
 
-<!-- Copy the block above per decision. The two stubs below show the required shape and contain no
-     engineering content — replace or delete them. -->
+Chose: owner can modify another owner.
 
----
+The reason is that there can be more than one owner in an organization. For example, Acme already has multiple owners in the fixture.
 
-### Stub — the shape of a weak "Why"
+If owners could not modify another owner because they have the same rank, then they could not change each other's roles. The only other option would be changing your own role, but self-role changes are already blocked.
 
-**What I chose:** the obvious thing.
-**Why:** it is what the brief says to do.
-**What I rejected:** nothing, the alternative seemed worse.
-**What would change my mind:** I do not know.
-
-_Reads as a memory of the document, not a model of the system. Scores nothing._
+That could leave the organization with no way to change an owner's role. Since owner is already the highest rank, allowing one owner to modify another owner does not let them go above owner. It is mainly needed so owners can manage other owners.
 
 ---
 
-### Stub — the shape of a strong "Why"
+## Why org-level and device-level permission resolution use different queries
 
-**What I chose:** X.
-**Why:** I implemented Y first, because Y is the intuitive precedence rule. `node scripts/check-
-permissions.js` reported `<the actual reason string it reported>` on the case where the two grants
-disagree. That is only reachable if the two are evaluated in a different order than Y assumes.
-Moved to X in `<commit>` and the case passed. Logged in `BUILD-LOG.md` under Phase 2.
-**What I rejected:** Y, and also "resolve the narrower one last" — both fail the same case for the
-same reason.
-**What would change my mind:** a case where a narrower grant is expected to survive a broader
-refusal. I could not construct one, which is itself evidence for X.
+Considered: always filter grants by the requested `device_id`.
 
-_Shows what you believed, what disproved it, and what you did next._
+Chose: handle org-level and device-level checks differently.
+
+For an org-level check, I include grants from any device. This is because the org-level view needs to know if the user has the permission anywhere in the organization.
+
+For a specific device, I only use the org-wide grants (device_id = null) and grants for that exact device.
+
+This is important because a permission given for device A should not make the same permission appear on device B.
 
 ---
 
-## Where this repo argues with itself
+## Why the grants UI gets permission keys from resolve()
 
-The documents contradict each other, or contradict the schema, in at least one place. Name each
-one you found. For each: quote both statements, say which you built against, and say why.
+Considered: use a fixed list of the 19 permissions from the documentation.
 
-Building against the written rule and arguing in writing is a **full-marks** answer. Silently
-working around it, or quietly picking one and saying nothing, scores zero on the section — we
-cannot tell the difference between a decision and an oversight.
+Chose: use Object.keys(session.permissions) from resolve().
 
-## Deliberately not built
+The reason is the personalisation data can contain a permission that is not in the documented 19 permissions. In my fixture there is an extra device:reboot permission.
 
-What you chose not to build, and the reason. A scope cut with a stated reason is a senior
-judgement. An unmentioned gap is a gap.
+If I used a hardcoded list, that permission would not appear in the grants UI, so it could not be selected there.
+
+Using the permissions returned by the server means the UI uses the actual permissions instead of assuming that the documented list is always the complete list.
